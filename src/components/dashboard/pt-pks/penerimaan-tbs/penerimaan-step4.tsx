@@ -32,9 +32,8 @@ type Material = {
 };
 
 export function PenerimaanStep4({ data, onUpdate, onSubmit, onBack, loading }: Step4Props) {
-  const [formData, setFormData] = useState({
-    hargaPerKg: data.hargaPerKg || 0,
-  });
+  // Use parent data directly instead of local state
+  const hargaPerKg = data.hargaPerKg || 0;
 
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [material, setMaterial] = useState<Material | null>(null);
@@ -48,7 +47,7 @@ export function PenerimaanStep4({ data, onUpdate, onSubmit, onBack, loading }: S
   const potonganPersen = data.potonganPersen || 0;
   const potonganKg = data.potonganKg || 0;
   const beratNetto2 = data.beratNetto2 || 0;
-  const totalBayar = beratNetto2 * formData.hargaPerKg;
+  const totalBayar = beratNetto2 * hargaPerKg;
 
   useEffect(() => {
     // Fetch all details for preview
@@ -109,13 +108,13 @@ export function PenerimaanStep4({ data, onUpdate, onSubmit, onBack, loading }: S
   }, [data]);
 
   const handleSubmit = () => {
-    if (formData.hargaPerKg <= 0) {
+    if (hargaPerKg <= 0) {
       alert("Harga per kg harus lebih dari 0");
       return;
     }
 
     onUpdate({
-      ...formData,
+      hargaPerKg,
       totalBayar,
     });
     onSubmit();
@@ -143,9 +142,9 @@ export function PenerimaanStep4({ data, onUpdate, onSubmit, onBack, loading }: S
                 step="1"
                 min="0"
                 placeholder="0"
-                value={formData.hargaPerKg || ""}
+                value={hargaPerKg || ""}
                 onChange={(e) =>
-                  setFormData({ ...formData, hargaPerKg: parseFloat(e.target.value) || 0 })
+                  onUpdate({ hargaPerKg: parseFloat(e.target.value) || 0 })
                 }
                 className="text-right text-lg font-semibold pl-12 pr-16"
               />
@@ -153,19 +152,19 @@ export function PenerimaanStep4({ data, onUpdate, onSubmit, onBack, loading }: S
                 / kg
               </div>
             </div>
-            {formData.hargaPerKg > 0 && (
+            {hargaPerKg > 0 && (
               <p className="text-sm text-muted-foreground">
                 {new Intl.NumberFormat("id-ID", {
                   style: "currency",
                   currency: "IDR",
                   minimumFractionDigits: 0,
-                }).format(formData.hargaPerKg)} per kilogram
+                }).format(hargaPerKg)} per kilogram
               </p>
             )}
           </div>
 
           {/* Total Bayar */}
-          {formData.hargaPerKg > 0 && beratNetto2 > 0 && (
+          {hargaPerKg > 0 && beratNetto2 > 0 && (
             <div className="p-6 bg-gradient-to-br from-green-600 to-green-700 text-white rounded-lg mt-4">
               <div className="flex justify-between items-start mb-3">
                 <div>
@@ -176,7 +175,7 @@ export function PenerimaanStep4({ data, onUpdate, onSubmit, onBack, loading }: S
                       style: "currency",
                       currency: "IDR",
                       minimumFractionDigits: 0,
-                    }).format(formData.hargaPerKg)}
+                    }).format(hargaPerKg)}
                   </div>
                 </div>
                 <BadgeDollarSign className="h-8 w-8 opacity-50" />
@@ -319,7 +318,7 @@ export function PenerimaanStep4({ data, onUpdate, onSubmit, onBack, loading }: S
                     style: "currency",
                     currency: "IDR",
                     minimumFractionDigits: 0,
-                  }).format(formData.hargaPerKg)}
+                  }).format(hargaPerKg)}
                 </div>
               </div>
             </div>
@@ -370,10 +369,10 @@ export function PenerimaanStep4({ data, onUpdate, onSubmit, onBack, loading }: S
         <Button variant="outline" onClick={onBack} disabled={loading}>
           Kembali
         </Button>
-        <Button 
-          onClick={handleSubmit} 
-          size="lg" 
-          disabled={loading || formData.hargaPerKg <= 0}
+        <Button
+          onClick={handleSubmit}
+          size="lg"
+          disabled={loading || hargaPerKg <= 0}
           className="min-w-[200px]"
         >
           {loading ? (

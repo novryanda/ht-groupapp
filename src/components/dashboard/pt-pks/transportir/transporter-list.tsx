@@ -12,10 +12,21 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Pencil, Trash2, Eye } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { TransporterForm } from "./transporter-form";
 import { TransporterDetail } from "./transporter-detail";
 
-type Transporter = {
+export type Transporter = {
   id: string;
   nomorKendaraan: string;
   namaSupir: string;
@@ -35,6 +46,8 @@ export function TransporterList() {
   const [showForm, setShowForm] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [selectedTransporter, setSelectedTransporter] = useState<Transporter | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const fetchTransporters = async () => {
     try {
@@ -69,19 +82,20 @@ export function TransporterList() {
     setShowDetail(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Apakah Anda yakin ingin menghapus transporter ini?")) return;
-
+  const handleDelete = async () => {
+    if (!deleteId) return;
     try {
-      const res = await fetch(`/api/pt-pks/transporter?id=${id}`, {
+      const res = await fetch(`/api/pt-pks/transporter?id=${deleteId}`, {
         method: "DELETE",
       });
-
       if (res.ok) {
         fetchTransporters();
       }
     } catch (error) {
       console.error("Error deleting transporter:", error);
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeleteId(null);
     }
   };
 
@@ -180,13 +194,35 @@ export function TransporterList() {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(transporter.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <AlertDialog open={deleteDialogOpen && deleteId === transporter.id} onOpenChange={(open) => {
+                          setDeleteDialogOpen(open);
+                          if (!open) setDeleteId(null);
+                        }}>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setDeleteId(transporter.id);
+                                setDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Hapus Transporter?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Apakah Anda yakin ingin menghapus transporter ini? Tindakan ini tidak dapat dibatalkan.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Batal</AlertDialogCancel>
+                              <AlertDialogAction onClick={handleDelete}>Hapus</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -197,5 +233,7 @@ export function TransporterList() {
         )}
       </CardContent>
     </Card>
+
   );
 }
+

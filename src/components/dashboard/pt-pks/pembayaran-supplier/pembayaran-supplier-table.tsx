@@ -27,6 +27,7 @@ type PembayaranData = {
   id: string;
   nomorPenerimaan: string;
   tanggalTerima: string;
+  operatorPenimbang: string;
   beratBruto: number;
   beratTarra: number;
   beratNetto1: number;
@@ -144,6 +145,7 @@ export function PembayaranSupplierTable() {
       "Bank",
       "No. Rekening",
       "Material",
+      "Operator Timbangan",
       "Kendaraan",
       "Supir",
       "Berat Bruto (kg)",
@@ -164,6 +166,7 @@ export function PembayaranSupplierTable() {
       item.supplier.bankName || "-",
       item.supplier.accountNumber || "-",
       item.material.name,
+      item.operatorPenimbang,
       item.transporter.nomorKendaraan,
       item.transporter.namaSupir,
       item.beratBruto,
@@ -363,6 +366,7 @@ export function PembayaranSupplierTable() {
                     <TableHead>Supplier</TableHead>
                     <TableHead>Bank & Rekening</TableHead>
                     <TableHead>Material</TableHead>
+                    <TableHead>Operator Timbangan</TableHead>
                     <TableHead>Kendaraan</TableHead>
                     <TableHead className="text-right">Bruto (kg)</TableHead>
                     <TableHead className="text-right">Tarra (kg)</TableHead>
@@ -377,7 +381,7 @@ export function PembayaranSupplierTable() {
                 <TableBody>
                   {filteredData.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={15} className="text-center py-8 text-muted-foreground">
                         {data.length === 0
                           ? "Belum ada data penerimaan TBS"
                           : "Tidak ada data yang sesuai dengan filter"}
@@ -413,6 +417,7 @@ export function PembayaranSupplierTable() {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm">{item.material.name}</TableCell>
+                        <TableCell className="text-sm font-medium">{item.operatorPenimbang}</TableCell>
                         <TableCell>
                           <div className="text-sm">
                             <div className="font-medium">{item.transporter.nomorKendaraan}</div>

@@ -22,6 +22,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 type Kategori = {
   id: string;
@@ -45,6 +56,10 @@ type Material = {
 };
 
 export function MaterialManagement() {
+  // State for AlertDialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteType, setDeleteType] = useState<null | "kategori" | "satuan" | "material">(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("kategori");
   
   // Kategori state
@@ -152,19 +167,21 @@ export function MaterialManagement() {
     }
   };
 
-  const handleDeleteKategori = async (id: string) => {
-    if (!confirm("Apakah Anda yakin ingin menghapus kategori ini?")) return;
-
+  const handleDeleteKategori = async () => {
+    if (!deleteId) return;
     try {
-      const res = await fetch(`/api/pt-pks/kategori-material?id=${id}`, {
+      const res = await fetch(`/api/pt-pks/kategori-material?id=${deleteId}`, {
         method: "DELETE",
       });
-
       if (res.ok) {
         fetchKategoris();
       }
     } catch (error) {
       console.error("Error deleting kategori:", error);
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeleteId(null);
+      setDeleteType(null);
     }
   };
 
@@ -203,19 +220,21 @@ export function MaterialManagement() {
     }
   };
 
-  const handleDeleteSatuan = async (id: string) => {
-    if (!confirm("Apakah Anda yakin ingin menghapus satuan ini?")) return;
-
+  const handleDeleteSatuan = async () => {
+    if (!deleteId) return;
     try {
-      const res = await fetch(`/api/pt-pks/satuan-material?id=${id}`, {
+      const res = await fetch(`/api/pt-pks/satuan-material?id=${deleteId}`, {
         method: "DELETE",
       });
-
       if (res.ok) {
         fetchSatuans();
       }
     } catch (error) {
       console.error("Error deleting satuan:", error);
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeleteId(null);
+      setDeleteType(null);
     }
   };
 
@@ -260,19 +279,21 @@ export function MaterialManagement() {
     }
   };
 
-  const handleDeleteMaterial = async (id: string) => {
-    if (!confirm("Apakah Anda yakin ingin menghapus material ini?")) return;
-
+  const handleDeleteMaterial = async () => {
+    if (!deleteId) return;
     try {
-      const res = await fetch(`/api/pt-pks/material?id=${id}`, {
+      const res = await fetch(`/api/pt-pks/material?id=${deleteId}`, {
         method: "DELETE",
       });
-
       if (res.ok) {
         fetchMaterials();
       }
     } catch (error) {
       console.error("Error deleting material:", error);
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeleteId(null);
+      setDeleteType(null);
     }
   };
 
@@ -407,13 +428,32 @@ export function MaterialManagement() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteKategori(kategori.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <AlertDialog open={deleteDialogOpen && deleteType === "kategori" && deleteId === kategori.id} onOpenChange={(open) => {
+                            setDeleteDialogOpen(open);
+                            if (!open) { setDeleteId(null); setDeleteType(null); }
+                          }}>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => { setDeleteId(kategori.id); setDeleteType("kategori"); setDeleteDialogOpen(true); }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Hapus Kategori?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Apakah Anda yakin ingin menghapus kategori ini? Tindakan ini tidak dapat dibatalkan.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteKategori}>Hapus</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -536,13 +576,32 @@ export function MaterialManagement() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteSatuan(satuan.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <AlertDialog open={deleteDialogOpen && deleteType === "satuan" && deleteId === satuan.id} onOpenChange={(open) => {
+                            setDeleteDialogOpen(open);
+                            if (!open) { setDeleteId(null); setDeleteType(null); }
+                          }}>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => { setDeleteId(satuan.id); setDeleteType("satuan"); setDeleteDialogOpen(true); }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Hapus Satuan?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Apakah Anda yakin ingin menghapus satuan ini? Tindakan ini tidak dapat dibatalkan.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteSatuan}>Hapus</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -741,13 +800,32 @@ export function MaterialManagement() {
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteMaterial(material.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <AlertDialog open={deleteDialogOpen && deleteType === "material" && deleteId === material.id} onOpenChange={(open) => {
+                            setDeleteDialogOpen(open);
+                            if (!open) { setDeleteId(null); setDeleteType(null); }
+                          }}>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => { setDeleteId(material.id); setDeleteType("material"); setDeleteDialogOpen(true); }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Hapus Material?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Apakah Anda yakin ingin menghapus material ini? Tindakan ini tidak dapat dibatalkan.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteMaterial}>Hapus</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </TableCell>
                     </TableRow>

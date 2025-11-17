@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Copy file package dan install dependencies
 COPY package*.json ./
+COPY prisma ./prisma/
 RUN npm install
 
 # Copy kode project

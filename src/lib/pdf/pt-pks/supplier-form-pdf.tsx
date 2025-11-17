@@ -262,8 +262,6 @@ export const SupplierFormPDF: React.FC<SupplierFormPDFProps> = ({
             </View>
             <View style={styles.fieldRow}>
               <Text style={styles.fieldLabel}>Tikoord Ramp/Peron</Text>
-              <Text style={styles.fieldColon}>:</Text>
-              <Text style={styles.fieldValue}></Text>
             </View>
             <View style={styles.fieldRow}>
               <Text style={styles.fieldLabel}>Bujur</Text>

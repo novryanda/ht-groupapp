@@ -21,6 +21,15 @@ interface Token {
 // Define public routes that don't require authentication
 const publicRoutes = ["/", "/auth", "/unauthorized"];
 
+// Helper: check if path is a public asset in /public (e.g. /netkrida.png, /logo.svg, etc)
+function isPublicAsset(pathname: string) {
+  // Only match root-level files (not /public/subfolder/file.png)
+  // If you want to allow all /public/**, use: return !pathname.includes("/") || pathname.split("/").length === 2;
+  // But Next.js serves /public/* as /*
+  // Allow all files at root (e.g. /file.png, /logo.svg)
+  return /^\/[\w.-]+\.(png|jpg|jpeg|gif|svg|ico|webp|txt|json|xml|pdf)$/i.test(pathname);
+}
+
 // Define protected routes and their required roles
 const protectedRoutes = {
   "/dashboard/pt-pks": ["Admin", "Manager", "User"],
@@ -46,7 +55,7 @@ export async function middleware(req: NextRequest) {
   }) as Token | null;
 
   const isLoggedIn = !!token;
-  const isPublicRoute = publicRoutes.includes(pathname);
+  const isPublicRoute = publicRoutes.includes(pathname) || isPublicAsset(pathname);
   const isApiRoute = pathname.startsWith("/api");
 
   // Handle API routes

@@ -83,7 +83,6 @@ const companyMenus: Record<string, MenuItem[]> = {
       items: [
         { title: "Proses Produksi", url: "/dashboard/pt-pks/produksi/proses-produksi" },
         { title: "Laporan Harian", url: "/dashboard/pt-pks/produksi/laporan-harian" },
-        { title: "Monitoring Rendemen", url: "/dashboard/pt-pks/produksi/monitoring-rendemen" }, // 🆕
       ],
     },
     

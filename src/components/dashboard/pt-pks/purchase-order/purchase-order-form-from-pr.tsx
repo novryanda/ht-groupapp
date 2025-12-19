@@ -84,7 +84,10 @@ export function PurchaseOrderFormFromPR({ onSuccess, onBack }: PurchaseOrderForm
     termPembayaran: "",
     tanggalKirimDiharapkan: new Date().toISOString().split("T")[0],
     issuedBy: "",
-    tax: 0,
+    taxPercent: 0,
+    discountType: "" as "" | "PERCENT" | "AMOUNT",
+    discountPercent: 0,
+    discountAmount: 0,
     shipping: 0,
     keterangan: "",
   });
@@ -175,7 +178,21 @@ export function PurchaseOrderFormFromPR({ onSuccess, onBack }: PurchaseOrderForm
     0
   );
 
-  const totalNilai = subtotal + Number(formData.tax) + Number(formData.shipping);
+  // Calculate discount
+  const calculatedDiscountAmount = formData.discountType === "PERCENT"
+    ? (subtotal * formData.discountPercent) / 100
+    : formData.discountType === "AMOUNT"
+    ? formData.discountAmount
+    : 0;
+
+  // Subtotal after discount
+  const subtotalAfterDiscount = subtotal - calculatedDiscountAmount;
+
+  // Calculate tax
+  const taxAmount = (subtotalAfterDiscount * formData.taxPercent) / 100;
+
+  // Total nilai
+  const totalNilai = subtotalAfterDiscount + taxAmount + Number(formData.shipping);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,7 +230,10 @@ export function PurchaseOrderFormFromPR({ onSuccess, onBack }: PurchaseOrderForm
           termPembayaran: formData.termPembayaran || undefined,
           tanggalKirimDiharapkan: formData.tanggalKirimDiharapkan || undefined,
           issuedBy: formData.issuedBy,
-          tax: Number(formData.tax),
+          taxPercent: Number(formData.taxPercent),
+          discountType: formData.discountType || undefined,
+          discountPercent: Number(formData.discountPercent),
+          discountAmount: Number(formData.discountAmount),
           shipping: Number(formData.shipping),
           keterangan: formData.keterangan || undefined,
           items: items.map((item) => ({
@@ -558,19 +578,88 @@ export function PurchaseOrderFormFromPR({ onSuccess, onBack }: PurchaseOrderForm
                     <span className="font-medium">Rp {subtotal.toLocaleString("id-ID")}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <Label htmlFor="tax" className="text-muted-foreground">PPN (Rp):</Label>
+                    <Label htmlFor="discountType" className="text-muted-foreground">Tipe Diskon:</Label>
+                    <Select
+                      value={formData.discountType}
+                      onValueChange={(value) =>
+                        setFormData({ 
+                          ...formData, 
+                          discountType: value as "" | "PERCENT" | "AMOUNT",
+                          discountPercent: 0,
+                          discountAmount: 0,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Tanpa Diskon" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Tanpa Diskon</SelectItem>
+                        <SelectItem value="PERCENT">Persen (%)</SelectItem>
+                        <SelectItem value="AMOUNT">Nominal (Rp)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {formData.discountType === "PERCENT" && (
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="discountPercent" className="text-muted-foreground">Diskon (%):</Label>
+                      <Input
+                        id="discountPercent"
+                        type="number"
+                        value={formData.discountPercent}
+                        onChange={(e) =>
+                          setFormData({ ...formData, discountPercent: Number(e.target.value) })
+                        }
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        className="w-32"
+                      />
+                    </div>
+                  )}
+                  {formData.discountType === "AMOUNT" && (
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="discountAmount" className="text-muted-foreground">Diskon (Rp):</Label>
+                      <Input
+                        id="discountAmount"
+                        type="number"
+                        value={formData.discountAmount}
+                        onChange={(e) =>
+                          setFormData({ ...formData, discountAmount: Number(e.target.value) })
+                        }
+                        min="0"
+                        step="0.01"
+                        className="w-32"
+                      />
+                    </div>
+                  )}
+                  {calculatedDiscountAmount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Potongan Diskon:</span>
+                      <span className="font-medium">- Rp {calculatedDiscountAmount.toLocaleString("id-ID")}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <Label htmlFor="taxPercent" className="text-muted-foreground">PPN (%):</Label>
                     <Input
-                      id="tax"
+                      id="taxPercent"
                       type="number"
-                      value={formData.tax}
+                      value={formData.taxPercent}
                       onChange={(e) =>
-                        setFormData({ ...formData, tax: Number(e.target.value) })
+                        setFormData({ ...formData, taxPercent: Number(e.target.value) })
                       }
                       min="0"
+                      max="100"
                       step="0.01"
                       className="w-32"
                     />
                   </div>
+                  {taxAmount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Nilai PPN:</span>
+                      <span className="font-medium">Rp {taxAmount.toLocaleString("id-ID")}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center">
                     <Label htmlFor="shipping" className="text-muted-foreground">Biaya Kirim (Rp):</Label>
                     <Input

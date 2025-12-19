@@ -11,9 +11,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Package } from "lucide-react";
+import { ArrowLeft, Package, FileDown } from "lucide-react";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
+import { toast } from "sonner";
+
+const handlePrintPDF = async (pengeluaranId: string, nomorPengeluaran: string) => {
+  try {
+    const response = await fetch(`/api/pt-pks/pengeluaran-barang/${pengeluaranId}/pdf`);
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Pengeluaran-${nomorPengeluaran}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("PDF berhasil diunduh");
+    } else {
+      toast.error("Gagal mengunduh PDF");
+    }
+  } catch (error) {
+    toast.error("Terjadi kesalahan saat mengunduh PDF");
+  }
+};
 
 interface PengeluaranBarang {
   id: string;
@@ -235,7 +258,14 @@ export function PengeluaranBarangDetail({
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
+          <div className="flex justify-between gap-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => handlePrintPDF(pengeluaranBarang.id, pengeluaranBarang.nomorPengeluaran)}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              Cetak PDF
+            </Button>
             <Button variant="outline" onClick={onClose}>
               Tutup
             </Button>

@@ -176,30 +176,54 @@ export const penerimaanBarangService = {
         });
 
         if (po) {
-          const allReceived = po.items.every(item => {
-            // Calculate total received including current GR
-            const currentGRItem = gr.items.find(i => i.purchaseOrderItemId === item.id);
-            const totalReceived = item.jumlahDiterima + (currentGRItem?.jumlahDiterima ?? 0);
-            return totalReceived >= item.jumlahOrder;
-          });
-
-          const someReceived = po.items.some(item => {
-            const currentGRItem = gr.items.find(i => i.purchaseOrderItemId === item.id);
-            const totalReceived = item.jumlahDiterima + (currentGRItem?.jumlahDiterima ?? 0);
-            return totalReceived > 0;
-          });
-
-          if (allReceived) {
-            await tx.purchaseOrder.update({
-              where: { id: gr.purchaseOrderId },
-              data: { status: StatusPurchaseOrder.COMPLETED },
-            });
-          } else if (someReceived) {
-            await tx.purchaseOrder.update({
-              where: { id: gr.purchaseOrderId },
-              data: { status: StatusPurchaseOrder.PARTIAL_RECEIVED },
-            });
+          // Update PO items to match received quantities and recalculate totals
+          // This ensures PO reflects actual received amounts (no partial receiving)
+          for (const grItem of gr.items) {
+            if (grItem.purchaseOrderItemId) {
+              const newSubtotal = grItem.jumlahDiterima * grItem.hargaSatuan;
+              
+              await tx.purchaseOrderItem.update({
+                where: { id: grItem.purchaseOrderItemId },
+                data: {
+                  jumlahOrder: grItem.jumlahDiterima,
+                  hargaSatuan: grItem.hargaSatuan,
+                  subtotal: newSubtotal,
+                  jumlahDiterima: grItem.jumlahDiterima,
+                },
+              });
+            }
           }
+
+          // Recalculate PO totals
+          const updatedItems = await tx.purchaseOrderItem.findMany({
+            where: { purchaseOrderId: gr.purchaseOrderId },
+          });
+
+          const newSubtotal = updatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+          
+          // Recalculate discount
+          let calculatedDiscountAmount = 0;
+          if (po.discountType === "PERCENT") {
+            calculatedDiscountAmount = (newSubtotal * po.discountPercent) / 100;
+          } else if (po.discountType === "AMOUNT") {
+            calculatedDiscountAmount = po.discountAmount;
+          }
+          
+          const subtotalAfterDiscount = newSubtotal - calculatedDiscountAmount;
+          const taxAmount = (subtotalAfterDiscount * po.taxPercent) / 100;
+          const totalAmount = subtotalAfterDiscount + taxAmount + po.shipping;
+
+          // Update PO with new totals and COMPLETED status
+          await tx.purchaseOrder.update({
+            where: { id: gr.purchaseOrderId },
+            data: {
+              subtotal: newSubtotal,
+              discountAmount: calculatedDiscountAmount,
+              taxAmount,
+              totalAmount,
+              status: StatusPurchaseOrder.COMPLETED,
+            },
+          });
         }
       }
 
@@ -361,30 +385,54 @@ export const penerimaanBarangService = {
       });
 
       if (updatedPO) {
-        // Recalculate with updated jumlahDiterima
-        const allItemsReceived = updatedPO.items.every(poItem => {
-          const receivedItem = data.items.find(i => i.purchaseOrderItemId === poItem.id);
-          const additionalReceived = receivedItem?.jumlahDiterima ?? 0;
-          return (poItem.jumlahDiterima + additionalReceived) >= poItem.jumlahOrder;
-        });
-
-        const someItemsReceived = updatedPO.items.some(poItem => {
-          const receivedItem = data.items.find(i => i.purchaseOrderItemId === poItem.id);
-          const additionalReceived = receivedItem?.jumlahDiterima ?? 0;
-          return (poItem.jumlahDiterima + additionalReceived) > 0;
-        });
-
-        if (allItemsReceived) {
-          await tx.purchaseOrder.update({
-            where: { id: data.purchaseOrderId },
-            data: { status: StatusPurchaseOrder.COMPLETED },
-          });
-        } else if (someItemsReceived) {
-          await tx.purchaseOrder.update({
-            where: { id: data.purchaseOrderId },
-            data: { status: StatusPurchaseOrder.PARTIAL_RECEIVED },
-          });
+        // Update PO items to match received quantities and recalculate totals
+        // This ensures PO reflects actual received amounts (no partial receiving)
+        for (const receivedItem of data.items) {
+          if (receivedItem.purchaseOrderItemId) {
+            const newSubtotal = receivedItem.jumlahDiterima * receivedItem.hargaSatuan;
+            
+            await tx.purchaseOrderItem.update({
+              where: { id: receivedItem.purchaseOrderItemId },
+              data: {
+                jumlahOrder: receivedItem.jumlahDiterima,
+                hargaSatuan: receivedItem.hargaSatuan,
+                subtotal: newSubtotal,
+                jumlahDiterima: receivedItem.jumlahDiterima,
+              },
+            });
+          }
         }
+
+        // Recalculate PO totals
+        const updatedItems = await tx.purchaseOrderItem.findMany({
+          where: { purchaseOrderId: data.purchaseOrderId },
+        });
+
+        const newSubtotal = updatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+        
+        // Recalculate discount
+        let calculatedDiscountAmount = 0;
+        if (updatedPO.discountType === "PERCENT") {
+          calculatedDiscountAmount = (newSubtotal * updatedPO.discountPercent) / 100;
+        } else if (updatedPO.discountType === "AMOUNT") {
+          calculatedDiscountAmount = updatedPO.discountAmount;
+        }
+        
+        const subtotalAfterDiscount = newSubtotal - calculatedDiscountAmount;
+        const taxAmount = (subtotalAfterDiscount * updatedPO.taxPercent) / 100;
+        const totalAmount = subtotalAfterDiscount + taxAmount + updatedPO.shipping;
+
+        // Update PO with new totals and COMPLETED status
+        await tx.purchaseOrder.update({
+          where: { id: data.purchaseOrderId },
+          data: {
+            subtotal: newSubtotal,
+            discountAmount: calculatedDiscountAmount,
+            taxAmount,
+            totalAmount,
+            status: StatusPurchaseOrder.COMPLETED,
+          },
+        });
       }
 
       return penerimaanBarang;
@@ -520,6 +568,23 @@ export const penerimaanBarangService = {
       await tx.purchaseRequest.update({
         where: { id: purchaseRequestId },
         data: { status: StatusPurchaseRequest.COMPLETED },
+      });
+
+      // Calculate total nilai PR
+      const totalNilaiPR = pr.items.reduce((sum, item) => {
+        return sum + (item.jumlahRequest * (item.estimasiHarga || 0));
+      }, 0);
+
+      // Auto-create pembayaran PR record (mark as fully paid)
+      await tx.pembayaranPR.create({
+        data: {
+          purchaseRequestId,
+          jumlahBayar: totalNilaiPR,
+          metodePembayaran: "CASH",
+          nomorReferensi: nomorPenerimaan,
+          keterangan: `Pembayaran otomatis untuk PR Pembelian Langsung ${pr.nomorPR}`,
+          dibayarOleh: additionalData.receivedBy,
+        },
       });
 
       return penerimaanBarang;

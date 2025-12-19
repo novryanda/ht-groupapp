@@ -52,7 +52,10 @@ export function PurchaseOrderForm({ onSuccess }: { onSuccess: () => void }) {
     termPembayaran: "",
     tanggalKirimDiharapkan: new Date().toISOString().split("T")[0],
     issuedBy: "",
-    tax: 0,
+    taxPercent: 0,
+    discountType: "" as "" | "PERCENT" | "AMOUNT",
+    discountPercent: 0,
+    discountAmount: 0,
     shipping: 0,
     keterangan: "",
   });
@@ -118,10 +121,26 @@ export function PurchaseOrderForm({ onSuccess }: { onSuccess: () => void }) {
     setItems(newItems);
   };
 
-  const totalNilai = items.reduce(
+  const subtotal = items.reduce(
     (sum, item) => sum + item.jumlahOrder * item.hargaSatuan,
     0
   );
+
+  // Calculate discount
+  const calculatedDiscountAmount = formData.discountType === "PERCENT"
+    ? (subtotal * formData.discountPercent) / 100
+    : formData.discountType === "AMOUNT"
+    ? formData.discountAmount
+    : 0;
+
+  // Subtotal after discount
+  const subtotalAfterDiscount = subtotal - calculatedDiscountAmount;
+
+  // Calculate tax
+  const taxAmount = (subtotalAfterDiscount * formData.taxPercent) / 100;
+
+  // Total nilai
+  const totalNilai = subtotalAfterDiscount + taxAmount + Number(formData.shipping);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,7 +167,10 @@ export function PurchaseOrderForm({ onSuccess }: { onSuccess: () => void }) {
           termPembayaran: formData.termPembayaran,
           tanggalKirimDiharapkan: formData.tanggalKirimDiharapkan,
           issuedBy: formData.issuedBy,
-          tax: Number(formData.tax),
+          taxPercent: Number(formData.taxPercent),
+          discountType: formData.discountType || undefined,
+          discountPercent: Number(formData.discountPercent),
+          discountAmount: Number(formData.discountAmount),
           shipping: Number(formData.shipping),
           keterangan: formData.keterangan,
           items: items.map((item) => ({
@@ -267,18 +289,76 @@ export function PurchaseOrderForm({ onSuccess }: { onSuccess: () => void }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tax">PPN (Rp)</Label>
+              <Label htmlFor="taxPercent">PPN (%)</Label>
               <Input
-                id="tax"
+                id="taxPercent"
                 type="number"
                 step="0.01"
-                value={formData.tax}
+                min="0"
+                max="100"
+                value={formData.taxPercent}
                 onChange={(e) =>
-                  setFormData({ ...formData, tax: Number(e.target.value) })
+                  setFormData({ ...formData, taxPercent: Number(e.target.value) })
                 }
-                placeholder="0"
+                placeholder="11"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="discountType">Tipe Diskon</Label>
+              <Select
+                value={formData.discountType}
+                onValueChange={(value) =>
+                  setFormData({ 
+                    ...formData, 
+                    discountType: value as "" | "PERCENT" | "AMOUNT",
+                    discountPercent: 0,
+                    discountAmount: 0,
+                  })
+                }
+              >
+                <SelectTrigger id="discountType">
+                  <SelectValue placeholder="Pilih tipe diskon (opsional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Tanpa Diskon</SelectItem>
+                  <SelectItem value="PERCENT">Diskon Persen (%)</SelectItem>
+                  <SelectItem value="AMOUNT">Diskon Nominal (Rp)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {formData.discountType === "PERCENT" && (
+              <div className="space-y-2">
+                <Label htmlFor="discountPercent">Diskon (%)</Label>
+                <Input
+                  id="discountPercent"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={formData.discountPercent}
+                  onChange={(e) =>
+                    setFormData({ ...formData, discountPercent: Number(e.target.value) })
+                  }
+                  placeholder="0"
+                />
+              </div>
+            )}
+            {formData.discountType === "AMOUNT" && (
+              <div className="space-y-2">
+                <Label htmlFor="discountAmount">Diskon (Rp)</Label>
+                <Input
+                  id="discountAmount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.discountAmount}
+                  onChange={(e) =>
+                    setFormData({ ...formData, discountAmount: Number(e.target.value) })
+                  }
+                  placeholder="0"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="shipping">Biaya Kirim (Rp)</Label>
               <Input
@@ -420,34 +500,49 @@ export function PurchaseOrderForm({ onSuccess }: { onSuccess: () => void }) {
                       Subtotal:
                     </TableCell>
                     <TableCell className="text-right font-semibold">
-                      Rp {totalNilai.toLocaleString("id-ID")}
+                      Rp {subtotal.toLocaleString("id-ID")}
                     </TableCell>
                     <TableCell colSpan={2}></TableCell>
                   </TableRow>
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-right">
-                      PPN:
-                    </TableCell>
-                    <TableCell className="text-right">
-                      Rp {Number(formData.tax).toLocaleString("id-ID")}
-                    </TableCell>
-                    <TableCell colSpan={2}></TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-right">
-                      Biaya Kirim:
-                    </TableCell>
-                    <TableCell className="text-right">
-                      Rp {Number(formData.shipping).toLocaleString("id-ID")}
-                    </TableCell>
-                    <TableCell colSpan={2}></TableCell>
-                  </TableRow>
+                  {calculatedDiscountAmount > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-right text-green-600">
+                        Diskon {formData.discountType === "PERCENT" ? `(${formData.discountPercent}%)` : ""}:
+                      </TableCell>
+                      <TableCell className="text-right text-green-600">
+                        - Rp {calculatedDiscountAmount.toLocaleString("id-ID")}
+                      </TableCell>
+                      <TableCell colSpan={2}></TableCell>
+                    </TableRow>
+                  )}
+                  {formData.taxPercent > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-right">
+                        PPN ({formData.taxPercent}%):
+                      </TableCell>
+                      <TableCell className="text-right">
+                        Rp {taxAmount.toLocaleString("id-ID")}
+                      </TableCell>
+                      <TableCell colSpan={2}></TableCell>
+                    </TableRow>
+                  )}
+                  {Number(formData.shipping) > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-right">
+                        Biaya Kirim:
+                      </TableCell>
+                      <TableCell className="text-right">
+                        Rp {Number(formData.shipping).toLocaleString("id-ID")}
+                      </TableCell>
+                      <TableCell colSpan={2}></TableCell>
+                    </TableRow>
+                  )}
                   <TableRow>
                     <TableCell colSpan={3} className="text-right font-bold">
                       Total Nilai PO:
                     </TableCell>
                     <TableCell className="text-right font-bold">
-                      Rp {(totalNilai + Number(formData.tax) + Number(formData.shipping)).toLocaleString("id-ID")}
+                      Rp {totalNilai.toLocaleString("id-ID")}
                     </TableCell>
                     <TableCell colSpan={2}></TableCell>
                   </TableRow>

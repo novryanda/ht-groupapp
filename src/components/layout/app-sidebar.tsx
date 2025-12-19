@@ -116,6 +116,7 @@ const companyMenus: Record<string, MenuItem[]> = {
       roles: ["Admin", "Manager Marketing", "Staff Marketing"],
       items: [
         { title: "Pengiriman Product", url: "/dashboard/pt-pks/pemasaran/pengiriman-product" },
+        { title: "Riwayat Pengiriman", url: "/dashboard/pt-pks/pemasaran/riwayat-pengiriman" },
       ],
     },
 
@@ -136,6 +137,8 @@ const companyMenus: Record<string, MenuItem[]> = {
       roles: ["Admin", "Manager Keuangan", "Staff Keuangan"],
       items: [
         { title: "Hutang Supplier", url: "/dashboard/pt-pks/keuangan/hutang-supplier" },
+        { title: "Pembayaran PR Langsung", url: "/dashboard/pt-pks/keuangan/pembayaran-pr" },
+        { title: "Pembayaran PO", url: "/dashboard/pt-pks/keuangan/pembayaran-po" },
         { title: "Piutang Customer", url: "/dashboard/pt-pks/keuangan/piutang-customer" },
         { title: "Neraca", url: "/dashboard/pt-pks/keuangan/neraca" },
       ],

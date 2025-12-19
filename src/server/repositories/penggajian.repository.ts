@@ -105,7 +105,9 @@ export class PenggajianRepository {
     return db.penggajianKaryawan.create({
       data: {
         ...data,
-        tanggalKerja: data.tanggalKerja as Prisma.InputJsonValue,
+        masterKaryawanId: data.masterKaryawanId ?? undefined,
+        tanggalKerja: data.tanggalKerja as Prisma.InputJsonValue ?? undefined,
+        lemburDetail: data.lemburDetail as Prisma.InputJsonValue ?? undefined,
       },
     });
   }
@@ -117,7 +119,9 @@ export class PenggajianRepository {
     return db.penggajianKaryawan.createMany({
       data: dataList.map((data) => ({
         ...data,
-        tanggalKerja: data.tanggalKerja as Prisma.InputJsonValue,
+        masterKaryawanId: data.masterKaryawanId ?? undefined,
+        tanggalKerja: data.tanggalKerja as Prisma.InputJsonValue ?? undefined,
+        lemburDetail: data.lemburDetail as Prisma.InputJsonValue ?? undefined,
       })),
     });
   }
@@ -130,7 +134,9 @@ export class PenggajianRepository {
       where: { id },
       data: {
         ...data,
-        tanggalKerja: data.tanggalKerja as Prisma.InputJsonValue,
+        masterKaryawanId: data.masterKaryawanId ?? undefined,
+        tanggalKerja: data.tanggalKerja as Prisma.InputJsonValue ?? undefined,
+        lemburDetail: data.lemburDetail as Prisma.InputJsonValue ?? undefined,
       },
     });
   }

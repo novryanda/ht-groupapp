@@ -599,9 +599,10 @@ model ContractItem {
     materialId  String
     
     // Detail Item
-    quantity    Float    // Jumlah/kuantitas
-    unitPrice   Float    // Harga per satuan
-    totalPrice  Float    // Total harga item (quantity * unitPrice) - auto-calculated
+    quantity          Float    // Jumlah/kuantitas kontrak (tidak berubah)
+    deliveredQuantity Float    @default(0) // Jumlah yang sudah dikirim
+    unitPrice         Float    // Harga per satuan
+    totalPrice        Float    // Total harga item (quantity * unitPrice) - auto-calculated
     
     // Catatan
     notes       String?  // Catatan untuk item ini
@@ -902,6 +903,7 @@ model PurchaseRequest {
     items                 PurchaseRequestItem[]
     purchaseOrder         PurchaseOrder?
     penerimaanBarang      PenerimaanBarang[]     // Relasi ke penerimaan barang (untuk pembelian langsung)
+    pembayaranPR          PembayaranPR[]         // Pembayaran untuk PR pembelian langsung
     
     @@index([companyId])
     @@index([tanggalRequest])
@@ -948,9 +950,17 @@ model PurchaseOrder {
     tanggalApproval       DateTime?
     
     subtotal              Float                @default(0)
-    tax                   Float                @default(0)  // PPN
+    taxPercent            Float                @default(0)  // PPN dalam persen (%)
+    taxAmount             Float                @default(0)  // Jumlah PPN (auto-calculated)
+    discountType          String?              // PERCENT atau AMOUNT
+    discountPercent       Float                @default(0)  // Diskon dalam persen (%)
+    discountAmount        Float                @default(0)  // Jumlah diskon (jika tipe AMOUNT atau auto-calculated jika PERCENT)
     shipping              Float                @default(0)  // Biaya kirim
     totalAmount           Float                @default(0)  // Total keseluruhan
+    
+    // PDF Brosur/Lampiran
+    brosurPdfPath         String?              // Path ke file PDF brosur
+    brosurPdfName         String?              // Nama file asli
     
     keterangan            String?
     status                StatusPurchaseOrder  @default(DRAFT)
@@ -961,6 +971,7 @@ model PurchaseOrder {
     purchaseRequest       PurchaseRequest?     @relation(fields: [purchaseRequestId], references: [id])
     items                 PurchaseOrderItem[]
     penerimaanBarang      PenerimaanBarang[]
+    pembayaranPO          PembayaranPO[]       // Pembayaran untuk PO
     
     @@index([companyId])
     @@index([tanggalPO])
@@ -1166,8 +1177,187 @@ model InventoryTransaction {
 }
 
 // ============================================
+// MODUL KEUANGAN
+// ============================================
+
+// Enum untuk status pembayaran
+enum StatusPembayaran {
+    UNPAID      // Belum dibayar
+    PARTIAL     // Sebagian dibayar
+    PAID        // Sudah dibayar lunas
+}
+
+// Enum untuk tipe hutang/piutang
+enum TipeTransaksiKeuangan {
+    PENERIMAAN_TBS      // Hutang dari pembelian TBS ke supplier
+    PURCHASE_ORDER      // Hutang dari PO ke vendor
+    PEMBELIAN_LANGSUNG  // Hutang dari PR pembelian langsung
+    PENGIRIMAN_PRODUCT  // Piutang dari pengiriman product ke buyer
+}
+
+// Model Hutang (Payable) - Track semua yang harus dibayar ke supplier/vendor
+model Hutang {
+    id                    String                   @id @default(cuid())
+    companyId             String
+    
+    tipeTransaksi         TipeTransaksiKeuangan    
+    referensiId           String                   // ID dari penerimaan TBS/PO/PR
+    referensiNomor        String                   // Nomor referensi
+    tanggalTransaksi      DateTime                 
+    tanggalJatuhTempo     DateTime?                // Tanggal jatuh tempo pembayaran
+    
+    // Informasi Pihak Ketiga
+    pihakKetigaId         String?                  // ID Supplier/Vendor
+    pihakKetigaNama       String                   // Nama Supplier/Vendor
+    pihakKetigaTipe       String?                  // SUPPLIER / VENDOR
+    
+    // Nilai
+    totalNilai            Float                    // Total nilai hutang
+    totalDibayar          Float                    @default(0) // Total yang sudah dibayar
+    sisaHutang            Float                    // Sisa hutang (totalNilai - totalDibayar)
+    
+    // Status
+    status                StatusPembayaran         @default(UNPAID)
+    
+    // Catatan
+    keterangan            String?
+    
+    createdAt             DateTime                 @default(now())
+    updatedAt             DateTime                 @updatedAt
+    
+    pembayaranHutang      PembayaranHutang[]
+    
+    @@index([companyId])
+    @@index([tipeTransaksi])
+    @@index([status])
+    @@index([tanggalTransaksi])
+    @@index([pihakKetigaId])
+}
+
+// Model Pembayaran Hutang - Record setiap pembayaran
+model PembayaranHutang {
+    id                    String    @id @default(cuid())
+    hutangId              String
+    
+    tanggalBayar          DateTime  @default(now())
+    jumlahBayar           Float
+    metodePembayaran      String?   // CASH, TRANSFER, GIRO, dll
+    nomorReferensi        String?   // Nomor bukti bayar
+    keterangan            String?
+    dibayarOleh           String    // Username yang mencatat pembayaran
+    
+    createdAt             DateTime  @default(now())
+    
+    hutang                Hutang    @relation(fields: [hutangId], references: [id], onDelete: Cascade)
+    
+    @@index([hutangId])
+    @@index([tanggalBayar])
+}
+
+// Model Piutang (Receivable) - Track semua yang harus diterima dari buyer
+model Piutang {
+    id                    String                   @id @default(cuid())
+    companyId             String
+    
+    tipeTransaksi         TipeTransaksiKeuangan    @default(PENGIRIMAN_PRODUCT)
+    referensiId           String                   // ID dari pengiriman product
+    referensiNomor        String                   // Nomor pengiriman
+    tanggalTransaksi      DateTime                 
+    tanggalJatuhTempo     DateTime?                // Tanggal jatuh tempo pembayaran
+    
+    // Informasi Buyer
+    buyerId               String?
+    buyerNama             String
+    contractId            String?                  // ID Kontrak terkait
+    contractNumber        String?                  // Nomor kontrak
+    
+    // Nilai
+    totalNilai            Float                    // Total nilai piutang
+    totalDiterima         Float                    @default(0) // Total yang sudah diterima
+    sisaPiutang           Float                    // Sisa piutang (totalNilai - totalDiterima)
+    
+    // Status
+    status                StatusPembayaran         @default(UNPAID)
+    
+    // Catatan
+    keterangan            String?
+    
+    createdAt             DateTime                 @default(now())
+    updatedAt             DateTime                 @updatedAt
+    
+    penerimaanPiutang     PenerimaanPiutang[]
+    
+    @@index([companyId])
+    @@index([status])
+    @@index([tanggalTransaksi])
+    @@index([buyerId])
+    @@index([contractId])
+}
+
+// Model Penerimaan Piutang - Record setiap pembayaran dari buyer
+model PenerimaanPiutang {
+    id                    String    @id @default(cuid())
+    piutangId             String
+    
+    tanggalTerima         DateTime  @default(now())
+    jumlahTerima          Float
+    metodePembayaran      String?   // CASH, TRANSFER, GIRO, dll
+    nomorReferensi        String?   // Nomor bukti terima
+    keterangan            String?
+    diterimaOleh          String    // Username yang mencatat penerimaan
+    
+    createdAt             DateTime  @default(now())
+    
+    piutang               Piutang   @relation(fields: [piutangId], references: [id], onDelete: Cascade)
+    
+    @@index([piutangId])
+    @@index([tanggalTerima])
+}
+
+// ============================================
 // MODUL PENGGAJIAN KARYAWAN
 // ============================================
+
+// Master Data Karyawan - Data tetap karyawan
+model MasterKaryawan {
+    id                    String   @id @default(cuid())
+    
+    // Identitas Karyawan
+    namaKaryawan          String   // NAMA KARYAWAN
+    tktk                  String?  // TK/K (Status keluarga)
+    gol                   String?  // GOL (Golongan)
+    nomorRekening         String?  // NOMOR REKENING
+    devisi                String?  // DEVISI
+    noBpjsTk              String?  // NO BPJS TK
+    noBpjsKesehatan       String?  // NO BPJS KESEHATAN
+    jabatan               String?  // JABATAN
+    
+    // ========== GAJI (SALARY) ==========
+    gajiPokok             Decimal  @default(0) @db.Decimal(15, 0)  // Gaji Pokok
+    
+    // ========== TUNJANGAN ==========
+    tunjanganJabatan      Decimal  @default(0) @db.Decimal(15, 0)  // Tunjangan Jabatan
+    tunjanganPerumahan    Decimal  @default(0) @db.Decimal(15, 0)  // Tunjangan Perumahan
+    
+    // ========== POTONGAN PERSENTASE (optional) ==========
+    pctBpjsTkJht          Decimal  @default(2) @db.Decimal(5, 2)   // % BPJS TK JHT (default 2%)
+    pctBpjsTkJn           Decimal  @default(1) @db.Decimal(5, 2)   // % BPJS TK JN (default 1%)
+    pctBpjsKesehatan      Decimal  @default(1) @db.Decimal(5, 2)   // % BPJS Kesehatan (default 1%)
+    
+    // ========== STATUS ==========
+    isActive              Boolean  @default(true)
+    tanggalMulaiKerja     DateTime?
+    
+    createdAt             DateTime @default(now())
+    updatedAt             DateTime @updatedAt
+    
+    // Relations
+    penggajian            PenggajianKaryawan[]
+    
+    @@index([namaKaryawan])
+    @@index([devisi])
+    @@index([isActive])
+}
 
 model PenggajianKaryawan {
     id                    String   @id @default(cuid())
@@ -1175,6 +1365,10 @@ model PenggajianKaryawan {
     // Periode Gaji
     periodeBulan          Int      // 1-12
     periodeTahun          Int      // 2024, 2025, etc
+    
+    // Reference to Master Karyawan (optional for backward compatibility)
+    masterKaryawanId      String?
+    masterKaryawan        MasterKaryawan? @relation(fields: [masterKaryawanId], references: [id])
     
     // Identitas Karyawan (Column A-I from Excel)
     no                    Int?     // NO
@@ -1188,15 +1382,26 @@ model PenggajianKaryawan {
     jabatan               String?  // JABATAN
     
     // Tanggal Olah TBS / Tanggal Kerja (1-31) - stored as JSON
-    // Format: { "1": "H", "2": "SC", "3": "OFF", ... }
+    // Format: { "1": "WK", "2": "Off", "3": "PH", ... }
+    // Kategori: WK=Masuk Kerja, Off=Libur, PH=Hari Libur Nasional, Cuti (AL)=Cuti Tahunan,
+    //           PC=Pinjam Cuti, Sakit (sc)=Sakit, P1=Libur tidak dibayar, M=Mangkir, SK=Skorsing
     tanggalKerja          Json?    // TANGGAL KERJA (kolom 1-31)
+    
+    // Data lembur per tanggal - stored as JSON
+    // Format: { "1": { "x15": 60, "x2": 0, "x3": 0, "x4": 0 }, "2": { ... } }
+    // x15=x1.5, x2=x2, x3=x3, x4=x4 dalam menit
+    lemburDetail          Json?    // Detail lembur per tanggal (menit)
+    
+    // Total akumulasi lembur (kalkulasi otomatis)
+    totalMenit            Int      @default(0)  // Total menit lembur
+    totalMenitDibayar     Int      @default(0)  // Total menit dibayar (setelah dikalikan multiplier)
     
     // ========== HARI KERJA SECTION ==========
     hk                    Int      @default(0)  // HK (Hari Kerja)
     liburDibayar          Int      @default(0)  // Libur Dibayar
     hkTidakDibayar        Int      @default(0)  // HK Tidak Dibayar
     hkDibayar             Int      @default(0)  // HK Dibayar
-    lemburHari            Float    @default(0)  // Lembur (hari)
+    lemburHari            Float    @default(0)  // Lembur (hari) - backward compatibility
     
     // ========== GAJI (SALARY) ==========
     gajiPokok             Decimal  @default(0) @db.Decimal(15, 0)  // Gaji Pokok
@@ -1230,4 +1435,45 @@ model PenggajianKaryawan {
     @@index([periodeBulan, periodeTahun])
     @@index([namaKaryawan])
     @@index([devisi])
+    @@index([masterKaryawanId])
+}
+
+// Model Pembayaran PR - Record pembayaran untuk PR Pembelian Langsung
+model PembayaranPR {
+    id                    String           @id @default(cuid())
+    purchaseRequestId     String
+    
+    tanggalBayar          DateTime         @default(now())
+    jumlahBayar           Float
+    metodePembayaran      String?          // CASH, TRANSFER, GIRO, dll
+    nomorReferensi        String?          // Nomor bukti bayar
+    keterangan            String?
+    dibayarOleh           String           // Username yang mencatat pembayaran
+    
+    createdAt             DateTime         @default(now())
+    
+    purchaseRequest       PurchaseRequest  @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+    
+    @@index([purchaseRequestId])
+    @@index([tanggalBayar])
+}
+
+// Model Pembayaran PO - Record pembayaran untuk Purchase Order
+model PembayaranPO {
+    id                    String         @id @default(cuid())
+    purchaseOrderId       String
+    
+    tanggalBayar          DateTime       @default(now())
+    jumlahBayar           Float
+    metodePembayaran      String?        // CASH, TRANSFER, GIRO, dll
+    nomorReferensi        String?        // Nomor bukti bayar
+    keterangan            String?
+    dibayarOleh           String         // Username yang mencatat pembayaran
+    
+    createdAt             DateTime       @default(now())
+    
+    purchaseOrder         PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+    
+    @@index([purchaseOrderId])
+    @@index([tanggalBayar])
 }

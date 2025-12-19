@@ -17,9 +17,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, FileText } from "lucide-react";
-import { useState } from "react";
+import { Pencil, Trash2, FileText, Printer, Truck, Package, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
 
 type Contract = {
   id: string;
@@ -83,9 +84,76 @@ const taxStatusLabels: Record<string, string> = {
   PKP_1_1: "PKP 1.1%",
 };
 
+const deliveryStatusLabels: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
+  DRAFT: { label: "Draft", variant: "secondary" },
+  COMPLETED: { label: "Selesai", variant: "default" },
+  CANCELLED: { label: "Dibatalkan", variant: "destructive" },
+};
+
+type DeliveryData = {
+  itemSummaries: Array<{
+    contractItemId: string;
+    materialId: string;
+    materialCode: string;
+    materialName: string;
+    satuan: { name: string; symbol: string };
+    contractQuantity: number;
+    deliveredQuantity: number;
+    remainingQuantity: number;
+    deliveryPercentage: number;
+    unitPrice: number;
+    deliveryCount: number;
+  }>;
+  deliveries: Array<{
+    id: string;
+    nomorPengiriman: string;
+    tanggalPengiriman: string;
+    status: string;
+    beratNetto: number;
+    contractItemId: string;
+    vendorVehicle: {
+      nomorKendaraan: string;
+      namaSupir: string;
+      vendor: { name: string };
+    };
+  }>;
+  overallSummary: {
+    totalDeliveries: number;
+    totalDeliveredWeight: number;
+    pendingDeliveries: number;
+  };
+};
+
 export function ContractDetail({ contract }: { contract: Contract }) {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deliveryData, setDeliveryData] = useState<DeliveryData | null>(null);
+  const [isLoadingDeliveries, setIsLoadingDeliveries] = useState(true);
+
+  useEffect(() => {
+    const fetchDeliveries = async () => {
+      try {
+        const response = await fetch(`/api/pt-pks/contract/${contract.id}/deliveries`);
+        if (response.ok) {
+          const data = await response.json();
+          setDeliveryData(data);
+        }
+      } catch (error) {
+        console.error("Error fetching deliveries:", error);
+      } finally {
+        setIsLoadingDeliveries(false);
+      }
+    };
+
+    fetchDeliveries();
+  }, [contract.id]);
+
+  const handlePrintContract = () => {
+    window.open(`/api/pt-pks/contract/${contract.id}/pdf`, "_blank");
+  };
 
   const handleDelete = async () => {
     if (!confirm("Apakah Anda yakin ingin menghapus kontrak ini?")) {
@@ -150,6 +218,13 @@ export function ContractDetail({ contract }: { contract: Contract }) {
           >
             <FileText className="mr-2 h-4 w-4" />
             Lihat Buyer
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handlePrintContract}
+          >
+            <Printer className="mr-2 h-4 w-4" />
+            Cetak Kontrak
           </Button>
           {contract.status === "DRAFT" && (
             <>
@@ -432,6 +507,178 @@ export function ContractDetail({ contract }: { contract: Contract }) {
               </span>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Progress Pengiriman */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Truck className="h-5 w-5" />
+            Progress Pengiriman
+          </CardTitle>
+          <CardDescription>
+            Tracking pengiriman berdasarkan kontrak ini
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingDeliveries ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Memuat data pengiriman...
+            </div>
+          ) : deliveryData ? (
+            <div className="space-y-6">
+              {/* Summary Stats */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-muted/50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-primary">
+                    {deliveryData.overallSummary.totalDeliveries}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Total Pengiriman</p>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-green-600">
+                    {deliveryData.overallSummary.totalDeliveredWeight.toLocaleString("id-ID", {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 2,
+                    })} kg
+                  </p>
+                  <p className="text-sm text-muted-foreground">Total Terkirim</p>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-yellow-600">
+                    {deliveryData.overallSummary.pendingDeliveries}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Pending</p>
+                </div>
+              </div>
+
+              {/* Per Item Progress */}
+              <div className="space-y-4">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Progress Per Item
+                </h4>
+                {deliveryData.itemSummaries.map((item) => (
+                  <div key={item.contractItemId} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-medium">{item.materialName}</p>
+                        <p className="text-sm text-muted-foreground">{item.materialCode}</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="outline">
+                          {item.deliveryCount} pengiriman
+                        </Badge>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Kontrak: {item.contractQuantity.toLocaleString("id-ID")} {item.satuan.symbol}
+                        </p>
+                      </div>
+                    </div>
+                    <Progress value={item.deliveryPercentage} className="h-2 mb-2" />
+                    <div className="flex justify-between text-sm">
+                      <span className="text-green-600">
+                        Terkirim: {item.deliveredQuantity.toLocaleString("id-ID")} {item.satuan.symbol}
+                      </span>
+                      <span className="text-orange-600">
+                        Sisa: {item.remainingQuantity.toLocaleString("id-ID")} {item.satuan.symbol}
+                      </span>
+                      <span className="font-medium">
+                        {item.deliveryPercentage.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Delivery Activity Log */}
+              {deliveryData.deliveries.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold flex items-center gap-2">
+                      <ArrowRight className="h-4 w-4" />
+                      Riwayat Pengiriman
+                    </h4>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/dashboard/pt-pks/pemasaran/riwayat-pengiriman?contractId=${contract.id}`)}
+                    >
+                      Lihat Semua
+                    </Button>
+                  </div>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>No. DO</TableHead>
+                          <TableHead>Tanggal</TableHead>
+                          <TableHead>Produk</TableHead>
+                          <TableHead className="text-right">Berat Netto</TableHead>
+                          <TableHead>Kendaraan</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {deliveryData.deliveries.slice(0, 5).map((delivery) => {
+                          const itemInfo = deliveryData.itemSummaries.find(
+                            (i) => i.contractItemId === delivery.contractItemId
+                          );
+                          return (
+                            <TableRow key={delivery.id}>
+                              <TableCell className="font-medium">
+                                {delivery.nomorPengiriman}
+                              </TableCell>
+                              <TableCell>
+                                {new Date(delivery.tanggalPengiriman).toLocaleDateString("id-ID", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </TableCell>
+                              <TableCell>{itemInfo?.materialName || "-"}</TableCell>
+                              <TableCell className="text-right">
+                                {delivery.beratNetto.toLocaleString("id-ID")} kg
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  <p className="text-sm">{delivery.vendorVehicle.nomorKendaraan}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {delivery.vendorVehicle.namaSupir}
+                                  </p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={deliveryStatusLabels[delivery.status]?.variant || "default"}>
+                                  {deliveryStatusLabels[delivery.status]?.label || delivery.status}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {deliveryData.deliveries.length > 5 && (
+                    <p className="text-sm text-muted-foreground text-center">
+                      Menampilkan 5 dari {deliveryData.deliveries.length} pengiriman
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {deliveryData.deliveries.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                  <Truck className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Belum ada pengiriman untuk kontrak ini</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              Gagal memuat data pengiriman
+            </div>
+          )}
         </CardContent>
       </Card>
 

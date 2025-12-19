@@ -111,31 +111,31 @@ export class PengirimanProductService {
       },
     });
 
-    // 3. Update contract item (kurangi quantity)
+    // 3. Update contract item (tambah deliveredQuantity)
     const contractItem = await db.contractItem.findUnique({
       where: { id: pengiriman.contractItemId },
     });
 
     if (contractItem) {
-      const remainingQuantity = contractItem.quantity - beratNetto;
+      const newDeliveredQuantity = contractItem.deliveredQuantity + beratNetto;
       
       await db.contractItem.update({
         where: { id: pengiriman.contractItemId },
         data: {
-          quantity: remainingQuantity,
+          deliveredQuantity: newDeliveredQuantity,
         },
       });
 
-      // 4. Check if contract should be completed
+      // 4. Check if contract should be completed (semua item sudah terkirim penuh)
       const allContractItems = await db.contractItem.findMany({
         where: { contractId: pengiriman.contractId },
       });
 
       const allItemsCompleted = allContractItems.every((item: any) => {
         if (item.id === pengiriman.contractItemId) {
-          return remainingQuantity <= 0;
+          return newDeliveredQuantity >= item.quantity;
         }
-        return item.quantity <= 0;
+        return item.deliveredQuantity >= item.quantity;
       });
 
       if (allItemsCompleted) {
@@ -248,21 +248,22 @@ export class PengirimanProductService {
       }
     );
 
-    // Reverse contract item quantity
+    // Reverse contract item deliveredQuantity (kurangi yang sudah dikirim)
     const contractItem = await db.contractItem.findUnique({
       where: { id: pengiriman.contractItemId },
     });
 
     if (contractItem) {
+      const newDeliveredQuantity = Math.max(0, contractItem.deliveredQuantity - beratNetto);
       await db.contractItem.update({
         where: { id: pengiriman.contractItemId },
         data: {
-          quantity: contractItem.quantity + beratNetto,
+          deliveredQuantity: newDeliveredQuantity,
         },
       });
     }
 
-    // Reverse contract status if needed
+    // Reverse contract status if needed (kembali ke ACTIVE karena ada pengiriman yang dibatalkan)
     await db.contract.update({
       where: { id: pengiriman.contractId },
       data: {

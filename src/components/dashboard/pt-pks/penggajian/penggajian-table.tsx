@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Search, Download, Trash2, Users, DollarSign, TrendingDown } from "lucide-react";
 import { ImportPenggajianDialog } from "./import-penggajian-dialog";
+import { GeneratePenggajianDialog } from "./generate-penggajian-dialog";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import React from "react";
@@ -149,6 +151,7 @@ const formatCurrency = (value: number) => {
 };
 
 export function PenggajianTable() {
+  const router = useRouter();
   const [data, setData] = useState<PenggajianKaryawan[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -264,6 +267,11 @@ export function PenggajianTable() {
     return option?.label || String(bulan);
   };
 
+  // Handle click on karyawan name - navigate to detail page
+  const handleKaryawanClick = (karyawan: PenggajianKaryawan) => {
+    router.push(`/dashboard/pt-pks/payroll/penggajian/${karyawan.id}`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -356,6 +364,7 @@ export function PenggajianTable() {
             ))}
           </SelectContent>
         </Select>
+        <GeneratePenggajianDialog onSuccess={fetchData} />
         <ImportPenggajianDialog onSuccess={fetchData} />
         <Button variant="outline" onClick={handleExport} disabled={data.length === 0}>
           <Download className="mr-2 h-4 w-4" />
@@ -456,11 +465,14 @@ export function PenggajianTable() {
                           </TableRow>
                           {/* Data Rows */}
                           {items.map((item) => (
-                            <TableRow key={item.id}>
+                            <TableRow key={item.id} className="hover:bg-muted/30">
                               <TableCell className="sticky left-0 bg-background">
                                 {globalNo++}
                               </TableCell>
-                              <TableCell className="sticky left-[50px] bg-background font-medium">
+                              <TableCell 
+                                className="sticky left-[50px] bg-background font-medium cursor-pointer hover:text-primary hover:underline"
+                                onClick={() => handleKaryawanClick(item)}
+                              >
                                 {item.namaKaryawan}
                               </TableCell>
                               <TableCell className="text-xs">

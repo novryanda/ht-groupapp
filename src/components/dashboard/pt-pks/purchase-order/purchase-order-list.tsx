@@ -75,11 +75,17 @@ interface PurchaseOrder {
   approvedBy?: string;
   tanggalApproval?: string;
   subtotal: number;
-  tax: number;
+  taxPercent: number;
+  taxAmount: number;
+  discountType?: string;
+  discountPercent: number;
+  discountAmount: number;
   shipping: number;
   totalAmount: number;
   keterangan?: string;
   status: string;
+  brosurPdfPath?: string;
+  brosurPdfName?: string;
   purchaseRequest?: PurchaseRequest;
   items: PurchaseOrderItem[];
   penerimaanBarang: PenerimaanBarang[];

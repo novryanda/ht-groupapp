@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,10 +34,37 @@ import {
   Building2,
   Calendar,
   User,
+  FileDown,
+  Upload,
+  Trash2,
+  Download,
+  File,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
+
+const handlePrintPDF = async (id: string, nomorPO: string) => {
+  try {
+    const response = await fetch(`/api/pt-pks/purchase-order/${id}/pdf`);
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PO-${nomorPO}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("PDF berhasil diunduh");
+    } else {
+      toast.error("Gagal mengunduh PDF");
+    }
+  } catch (error) {
+    toast.error("Terjadi kesalahan saat mengunduh PDF");
+  }
+};
 
 interface PurchaseOrderItem {
   id: string;
@@ -88,11 +115,17 @@ interface PurchaseOrder {
   approvedBy?: string;
   tanggalApproval?: string;
   subtotal: number;
-  tax: number;
+  taxPercent: number;
+  taxAmount: number;
+  discountType?: string;
+  discountPercent: number;
+  discountAmount: number;
   shipping: number;
   totalAmount: number;
   keterangan?: string;
   status: string;
+  brosurPdfPath?: string;
+  brosurPdfName?: string;
   purchaseRequest?: PurchaseRequest;
   items: PurchaseOrderItem[];
   penerimaanBarang: PenerimaanBarang[];
@@ -113,6 +146,8 @@ export function PurchaseOrderDetail({
   const [loading, setLoading] = useState(false);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [approverName, setApproverName] = useState("");
+  const [uploadingBrosur, setUploadingBrosur] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -224,6 +259,74 @@ export function PurchaseOrderDetail({
 
   const handleCreatePenerimaan = () => {
     router.push(`/dashboard/pt-pks/gudang/penerimaan-barang?poId=${purchaseOrder.id}`);
+  };
+
+  const handleUploadBrosur = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      toast.error("Hanya file PDF yang diizinkan");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Ukuran file maksimal 10MB");
+      return;
+    }
+
+    setUploadingBrosur(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(
+        `/api/pt-pks/purchase-order/${purchaseOrder.id}/upload-brosur`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (response.ok) {
+        toast.success("Brosur berhasil diupload");
+        onRefresh();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Gagal upload brosur");
+      }
+    } catch (error) {
+      toast.error("Terjadi kesalahan saat upload");
+    } finally {
+      setUploadingBrosur(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleDeleteBrosur = async () => {
+    if (!confirm("Apakah Anda yakin ingin menghapus brosur ini?")) return;
+
+    setUploadingBrosur(true);
+    try {
+      const response = await fetch(
+        `/api/pt-pks/purchase-order/${purchaseOrder.id}/upload-brosur`,
+        { method: "DELETE" }
+      );
+
+      if (response.ok) {
+        toast.success("Brosur berhasil dihapus");
+        onRefresh();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "Gagal menghapus brosur");
+      }
+    } catch (error) {
+      toast.error("Terjadi kesalahan saat menghapus");
+    } finally {
+      setUploadingBrosur(false);
+    }
   };
 
   return (
@@ -431,14 +534,24 @@ export function PurchaseOrderDetail({
                   <span className="text-muted-foreground">Subtotal:</span>
                   <span className="font-medium">Rp {purchaseOrder.subtotal.toLocaleString("id-ID")}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">PPN:</span>
-                  <span className="font-medium">Rp {purchaseOrder.tax.toLocaleString("id-ID")}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Biaya Kirim:</span>
-                  <span className="font-medium">Rp {purchaseOrder.shipping.toLocaleString("id-ID")}</span>
-                </div>
+                {purchaseOrder.discountAmount > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Diskon {purchaseOrder.discountType === "PERCENT" ? `(${purchaseOrder.discountPercent}%)` : ""}:</span>
+                    <span className="font-medium">- Rp {purchaseOrder.discountAmount.toLocaleString("id-ID")}</span>
+                  </div>
+                )}
+                {purchaseOrder.taxAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">PPN ({purchaseOrder.taxPercent}%):</span>
+                    <span className="font-medium">Rp {purchaseOrder.taxAmount.toLocaleString("id-ID")}</span>
+                  </div>
+                )}
+                {purchaseOrder.shipping > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Biaya Kirim:</span>
+                    <span className="font-medium">Rp {purchaseOrder.shipping.toLocaleString("id-ID")}</span>
+                  </div>
+                )}
                 <Separator />
                 <div className="flex justify-between">
                   <span className="font-bold">Total:</span>
@@ -497,47 +610,127 @@ export function PurchaseOrderDetail({
             </>
           )}
 
+          {/* Brosur / Lampiran PDF */}
+          <Separator />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <File className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-semibold">Brosur / Lampiran PDF</h3>
+              </div>
+            </div>
+            
+            {purchaseOrder.brosurPdfPath ? (
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <FileText className="h-6 w-6 text-red-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium">{purchaseOrder.brosurPdfName || "Brosur PDF"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Klik untuk download atau hapus file
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    asChild
+                  >
+                    <a href={purchaseOrder.brosurPdfPath} target="_blank" rel="noopener noreferrer">
+                      <Download className="mr-2 h-4 w-4" />
+                      Download
+                    </a>
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDeleteBrosur}
+                    disabled={uploadingBrosur}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Hapus
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg">
+                <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground mb-3">
+                  Upload brosur atau lampiran PDF (Maks. 10MB)
+                </p>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".pdf,application/pdf"
+                  onChange={handleUploadBrosur}
+                  className="hidden"
+                  id="brosur-upload"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingBrosur}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  {uploadingBrosur ? "Mengupload..." : "Pilih File PDF"}
+                </Button>
+              </div>
+            )}
+          </div>
+
           {/* Actions */}
           <Separator />
-          <div className="flex justify-end gap-2">
-            {purchaseOrder.status === "DRAFT" && !purchaseOrder.approvedBy && (
-              <Button
-                variant="outline"
-                onClick={() => setShowApprovalDialog(true)}
-                disabled={loading}
-              >
-                <CheckCircle className="mr-2 h-4 w-4" />
-                Approve
-              </Button>
-            )}
-            {purchaseOrder.status === "DRAFT" && purchaseOrder.approvedBy && (
-              <Button
-                onClick={handleIssue}
-                disabled={loading}
-              >
-                <Send className="mr-2 h-4 w-4" />
-                Terbitkan PO
-              </Button>
-            )}
-            {purchaseOrder.status === "ISSUED" && (
-              <Button
-                onClick={handleCreatePenerimaan}
-                disabled={loading}
-              >
-                <Package className="mr-2 h-4 w-4" />
-                Buat Penerimaan Barang
-              </Button>
-            )}
-            {purchaseOrder.status !== "COMPLETED" && purchaseOrder.status !== "CANCELLED" && (
-              <Button
-                variant="destructive"
-                onClick={handleCancel}
-                disabled={loading}
-              >
-                <XCircle className="mr-2 h-4 w-4" />
-                Batalkan
-              </Button>
-            )}
+          <div className="flex justify-between gap-2">
+            <Button
+              variant="outline"
+              onClick={() => handlePrintPDF(purchaseOrder.id, purchaseOrder.nomorPO)}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              Cetak PDF
+            </Button>
+            <div className="flex gap-2">
+              {purchaseOrder.status === "DRAFT" && !purchaseOrder.approvedBy && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowApprovalDialog(true)}
+                  disabled={loading}
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Approve
+                </Button>
+              )}
+              {purchaseOrder.status === "DRAFT" && purchaseOrder.approvedBy && (
+                <Button
+                  onClick={handleIssue}
+                  disabled={loading}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Terbitkan PO
+                </Button>
+              )}
+              {purchaseOrder.status === "ISSUED" && (
+                <Button
+                  onClick={handleCreatePenerimaan}
+                  disabled={loading}
+                >
+                  <Package className="mr-2 h-4 w-4" />
+                  Buat Penerimaan Barang
+                </Button>
+              )}
+              {purchaseOrder.status !== "COMPLETED" && purchaseOrder.status !== "CANCELLED" && (
+                <Button
+                  variant="destructive"
+                  onClick={handleCancel}
+                  disabled={loading}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Batalkan
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

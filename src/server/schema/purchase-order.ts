@@ -17,7 +17,10 @@ export const purchaseOrderSchema = z.object({
   tanggalKirimDiharapkan: z.string().optional(),
   termPembayaran: z.string().optional(),
   issuedBy: z.string().min(1, "Issued by wajib diisi"),
-  tax: z.number().min(0).default(0),
+  taxPercent: z.number().min(0).max(100).default(0), // PPN dalam persen
+  discountType: z.enum(["PERCENT", "AMOUNT"]).optional(), // Tipe diskon
+  discountPercent: z.number().min(0).max(100).default(0), // Diskon dalam persen
+  discountAmount: z.number().min(0).default(0), // Diskon dalam nominal
   shipping: z.number().min(0).default(0),
   keterangan: z.string().optional(),
   items: z.array(purchaseOrderItemSchema).min(1, "Minimal 1 item"),
@@ -29,7 +32,10 @@ export const updatePurchaseOrderSchema = z.object({
   vendorPhone: z.string().optional(),
   tanggalKirimDiharapkan: z.string().optional(),
   termPembayaran: z.string().optional(),
-  tax: z.number().optional(),
+  taxPercent: z.number().min(0).max(100).optional(),
+  discountType: z.enum(["PERCENT", "AMOUNT"]).optional(),
+  discountPercent: z.number().min(0).max(100).optional(),
+  discountAmount: z.number().min(0).optional(),
   shipping: z.number().optional(),
   keterangan: z.string().optional(),
   items: z.array(purchaseOrderItemSchema).optional(),

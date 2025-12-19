@@ -22,9 +22,31 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, CheckCircle, XCircle, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Send, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+
+const handlePrintPDF = async (id: string, nomorPR: string) => {
+  try {
+    const response = await fetch(`/api/pt-pks/purchase-request/${id}/pdf`);
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PR-${nomorPR}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("PDF berhasil diunduh");
+    } else {
+      toast.error("Gagal mengunduh PDF");
+    }
+  } catch (error) {
+    toast.error("Terjadi kesalahan saat mengunduh PDF");
+  }
+};
 
 interface PurchaseRequest {
   id: string;
@@ -322,33 +344,42 @@ export function PurchaseRequestDetail({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-2">
-            {purchaseRequest.status === "DRAFT" && (
-              <Button onClick={handleSubmit} disabled={loading}>
-                <Send className="mr-2 h-4 w-4" />
-                Submit untuk Approval
-              </Button>
-            )}
+          <div className="flex justify-between gap-2">
+            <Button
+              variant="outline"
+              onClick={() => handlePrintPDF(purchaseRequest.id, purchaseRequest.nomorPR)}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              Cetak PDF
+            </Button>
+            <div className="flex gap-2">
+              {purchaseRequest.status === "DRAFT" && (
+                <Button onClick={handleSubmit} disabled={loading}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Submit untuk Approval
+                </Button>
+              )}
 
-            {purchaseRequest.status === "PENDING" && (
-              <>
-                <Button
-                  variant="destructive"
-                  onClick={handleReject}
-                  disabled={loading}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Tolak
-                </Button>
-                <Button
-                  onClick={() => setShowApprovalDialog(true)}
-                  disabled={loading}
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Approve
-                </Button>
-              </>
-            )}
+              {purchaseRequest.status === "PENDING" && (
+                <>
+                  <Button
+                    variant="destructive"
+                    onClick={handleReject}
+                    disabled={loading}
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Tolak
+                  </Button>
+                  <Button
+                    onClick={() => setShowApprovalDialog(true)}
+                    disabled={loading}
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Approve
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

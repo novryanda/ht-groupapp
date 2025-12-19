@@ -23,9 +23,31 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, CheckCircle, XCircle, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Send, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+
+const handlePrintPDF = async (id: string, nomorSR: string) => {
+  try {
+    const response = await fetch(`/api/pt-pks/store-request/${id}/pdf`);
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `SR-${nomorSR}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("PDF berhasil diunduh");
+    } else {
+      toast.error("Gagal mengunduh PDF");
+    }
+  } catch (error) {
+    toast.error("Terjadi kesalahan saat mengunduh PDF");
+  }
+};
 
 interface StoreRequest {
   id: string;
@@ -294,33 +316,42 @@ export function StoreRequestDetail({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-2">
-            {storeRequest.status === "PENDING" && (
-              <>
-                <Button
-                  variant="destructive"
-                  onClick={handleReject}
-                  disabled={loading}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Tolak
-                </Button>
-                <Button
-                  onClick={() => setShowApprovalDialog(true)}
-                  disabled={loading}
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Approve
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsEditMode(true)}
-                  disabled={loading}
-                >
-                  Edit
-                </Button>
-              </>
-            )}
+          <div className="flex justify-between gap-2">
+            <Button
+              variant="outline"
+              onClick={() => handlePrintPDF(storeRequest.id, storeRequest.nomorSR)}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              Cetak PDF
+            </Button>
+            <div className="flex gap-2">
+              {storeRequest.status === "PENDING" && (
+                <>
+                  <Button
+                    variant="destructive"
+                    onClick={handleReject}
+                    disabled={loading}
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Tolak
+                  </Button>
+                  <Button
+                    onClick={() => setShowApprovalDialog(true)}
+                    disabled={loading}
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Approve
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsEditMode(true)}
+                    disabled={loading}
+                  >
+                    Edit
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Inline Edit Form */}
